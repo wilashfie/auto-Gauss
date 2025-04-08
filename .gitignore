@@ -1,0 +1,10 @@
+
+.DS_Store
+*.fits
+*.sav
+
+
+
+siiv/
+Observation_files/
+iris_l2_20220331_174325_4204700137_movies/
