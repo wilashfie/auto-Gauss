@@ -6,19 +6,18 @@ import copy
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-
+# Define the Gaussian function
 def gaussian(x, amplitude, center, sigma):
-    """ Gaussian function """
     return amplitude * np.exp(-(x-center)**2 / (2*sigma**2))
 
+
+# Define the spectral model with multiple Gaussians
+# Gaussian 1 is always included, others are optional
+# Note: Gaussian 3, 4, and 5 are negative Gaussians
 def spectral_model(x, amp1, cen1, sig1, amp2=0, cen2=0, sig2=0, amp3=0, cen3=0, sig3=0, 
                    amp4=0, cen4=0, sig4=0, amp5=0, cen5=0, sig5=0, amp6=0, cen6=0, sig6=0, 
                    use_g1=True, use_g2=False, use_g3=False, use_g4=False, use_g5=False, use_g6=False):
-    """
-    Model with flexible combination of Gaussian peaks.
-    Boolean flags determine which Gaussians to include in the model.
-    Gaussian 1 is always included (use_g1 is always True).
-    """
+
     result = 0
     
     # Gaussian 1 is always included
@@ -41,77 +40,64 @@ def spectral_model(x, amp1, cen1, sig1, amp2=0, cen2=0, sig2=0, amp3=0, cen3=0, 
 
 
 def check_overlapping_gaussians(params, combo):
-    """
-    Check if Gaussians 5 and 6 are overlapping in this parameter set.
-    If both are included in the combo and their centers are very close,
-    return a modified combo that excludes the one with smaller absolute amplitude.
-    """
     # Only relevant if both Gaussians 5 and 6 are in the combo
     if 5 in combo and 6 in combo:
         cen5 = params['cen5'].value
         cen6 = params['cen6'].value
         
         # Define threshold for "overlapping" centers (in wavelength units)
-        overlap_threshold = 0.1  # You can adjust this value
+        overlap_threshold = 0.1  # adjust as needed
         
         if abs(cen5 - cen6) < overlap_threshold:
-            # They are overlapping, so check amplitudes
             amp5 = abs(params['amp5'].value)  # Absolute value since G5 is negative
             amp6 = params['amp6'].value
             
-            # Create a new combo excluding the smaller one
+            # new combo excluding the smaller one
             new_combo = list(combo)
             if amp5 < amp6:
                 new_combo.remove(5)
-                print(f"Removed Gaussian 5 due to overlap with Gaussian 6 (centers: {cen5:.4f}, {cen6:.4f})")
+                #print(f"Removed Gaussian 5 due to overlap with Gaussian 6 (centers: {cen5:.4f}, {cen6:.4f})")
             else:
                 new_combo.remove(6)
-                print(f"Removed Gaussian 6 due to overlap with Gaussian 5 (centers: {cen5:.4f}, {cen6:.4f})")
+                #print(f"Removed Gaussian 6 due to overlap with Gaussian 5 (centers: {cen5:.4f}, {cen6:.4f})")
             
             return tuple(new_combo)
     
-    # If no overlap or if not both 5 and 6 are in combo, return original combo
     return combo
 
 
 def post_fit_check_overlap(result, combo):
-    """
-    After fitting, check if Gaussians 5 and 6 are overlapping and have one
-    with much smaller amplitude that could be removed.
-    """
     # Only check if both Gaussians 5 and 6 are in the fit result
     if 5 in combo and 6 in combo:
         cen5 = result.params['cen5'].value
         cen6 = result.params['cen6'].value
         
-        # Define threshold for "overlapping" centers
         overlap_threshold = 0.1  # Adjust as needed
         
         if abs(cen5 - cen6) < overlap_threshold:
-            # Check which has the smaller absolute amplitude
+           
             amp5 = abs(result.params['amp5'].value)  # Absolute since G5 is negative
             amp6 = result.params['amp6'].value
-            
-            # If one amplitude is much smaller than the other
+            # Check if the amplitudes are significantly different
+            # Define a threshold for the ratio of amplitudes
             amp_ratio_threshold = 0.3  # Adjust as needed
             
             if amp5 < amp_ratio_threshold * amp6:
-                print(f"Post-fit: Gaussian 5 has much smaller amplitude than Gaussian 6 in overlap")
+                #print(f"Post-fit: Gaussian 5 has much smaller amplitude than Gaussian 6 in overlap")
                 return False
             elif amp6 < amp_ratio_threshold * amp5:
-                print(f"Post-fit: Gaussian 6 has much smaller amplitude than Gaussian 5 in overlap")
+                #print(f"Post-fit: Gaussian 6 has much smaller amplitude than Gaussian 5 in overlap")
                 return False
     
     # If no issues found, this fit is valid
     return True
 
 
+# Function to fit the best combination of Gaussians
+# This function will try all combinations of Gaussians 2-6 and return the best one
+# Gaussian 1 is always included
 def fit_best_combination(tm, px, lam, spec_cube, err_cube):
-    """
-    Fit the spectrum with different combinations of Gaussians.
-    Gaussian 1 is always included. Returns the best fit based on AIC or BIC.
-    Handles cases where Gaussians 5 and 6 might be overlapping.
-    """
+
     spec = spec_cube[px, tm]
     spec_err = err_cube[px, tm]
     
@@ -164,7 +150,6 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     base_params.add('use_g6', value=False, vary=False)
     
     # Generate all possible combinations of Gaussians 2-6
-    # Gaussian 1 is always included
     gaussians = [2, 3, 4, 5, 6]
     
     best_fit = None
@@ -214,12 +199,8 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     print(f"Best combination: {best_combination}")
     return best_fit
 
-
+# wrap the fit function to match the original function signature
 def fit6(tm, px, lam, spec_cube, err_cube):
-    """
-    Modified version of the original fit6 function that tries all combinations
-    and returns the best one.
-    """
     return fit_best_combination(tm, px, lam, spec_cube, err_cube)
 
 
@@ -253,20 +234,19 @@ def plot_fit_results(tm, px, lam, spec_cube, time_iris, result):
     # Get the fit parameters
     fit_res = result.params
     
-    # Gaussian function for plotting individual components
     def gaussian(x, amplitude, center, sigma):
         """ Gaussian function """
         return amplitude * np.exp(-(x-center)**2 / (2*sigma**2))
     
     # Get which Gaussians were used in the best fit
-    used_gaussians = [1]  # Gaussian 1 is always included
+    used_gaussians = [1] 
     for i in range(2, 7):
         param_name = f'use_g{i}'
         if param_name in fit_res and fit_res[param_name].value:
             used_gaussians.append(i)
     print(f"Gaussians used in best fit: {used_gaussians}")
     
-    # Define colors and styles for plotting
+    # colors and styles for plotting
     colors = ['blue', 'red', 'green', 'purple', 'orange', 'teal']
     linestyles = ['dashed'] * 6
     
@@ -286,7 +266,7 @@ def plot_fit_results(tm, px, lam, spec_cube, time_iris, result):
             # Add a zero array for consistency in indexing
             gaussians.append(np.zeros_like(lam))
     
-    # Create plot
+    # --------------------- plot ----------------------
     fig, ax = plt.subplots(figsize=(10, 6))
     
     # Format the time string for the plot
@@ -296,28 +276,25 @@ def plot_fit_results(tm, px, lam, spec_cube, time_iris, result):
         # Handle case where the time format might be different
         time_str = f"Frame {tm}"
     
-    # Plot the original spectrum
+    # original spectrum
     ax.plot(lam, spec, label=f't={time_str}', color='brown', alpha=0.5,ds='steps-mid')
     
-    # Add text with frame information
-    #ax.text(0.05, 0.95, f"Frame: {tm}, Best fit components: {used_gaussians}", 
-    #        transform=ax.transAxes, verticalalignment='top')
     
-    # Plot the best fit
+    # best fit
     ax.plot(lam, result.best_fit, color='black', linestyle='dashed', label='Total fit',ds='steps-mid')
     
-    # Plot only the Gaussians that were used in the best fit
+    # plot individual Gaussians
     for i, g_idx in enumerate(used_gaussians):
         ax.plot(lam, gaussians[g_idx-1], color=colors[g_idx-1], linestyle=linestyles[g_idx-1], 
                 label=f'G{g_idx}')
     
-    # Add legend and labels
+    # legend and labels
     ax.legend(loc='best', fontsize=10)
     ax.set_xlabel('Wavelength (Å)')
     ax.set_ylabel('Intensity')
     ax.set_title(f'Spectral Fit with Best Combination of Gaussians')
     
-    # Add a text box with fit statistics
+    # text box with fit statistics
     chisqr = result.chisqr
     n_data = len(spec)
     n_params = len([p for p in result.params.values() if p.vary])
