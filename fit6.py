@@ -6,7 +6,7 @@ import copy
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# Define the Gaussian function
+# Gaussian function
 def gaussian(x, amplitude, center, sigma):
     return amplitude * np.exp(-(x-center)**2 / (2*sigma**2))
 
@@ -39,8 +39,9 @@ def spectral_model(x, amp1, cen1, sig1, amp2=0, cen2=0, sig2=0, amp3=0, cen3=0, 
     return result
 
 
+# Function to check for overlapping Gaussians 5 and 6
+# patch to remove one of them if they are too close
 def check_overlapping_gaussians(params, combo):
-    # Only relevant if both Gaussians 5 and 6 are in the combo
     if 5 in combo and 6 in combo:
         cen5 = params['cen5'].value
         cen6 = params['cen6'].value
@@ -56,24 +57,22 @@ def check_overlapping_gaussians(params, combo):
             new_combo = list(combo)
             if amp5 < amp6:
                 new_combo.remove(5)
-                #print(f"Removed Gaussian 5 due to overlap with Gaussian 6 (centers: {cen5:.4f}, {cen6:.4f})")
             else:
                 new_combo.remove(6)
-                #print(f"Removed Gaussian 6 due to overlap with Gaussian 5 (centers: {cen5:.4f}, {cen6:.4f})")
             
             return tuple(new_combo)
     
     return combo
 
-
+# Function to check for overlapping Gaussians 5 and 6 after fitting
+# If they are too close, check their amplitudes
 def post_fit_check_overlap(result, combo):
-    # Only check if both Gaussians 5 and 6 are in the fit result
     if 5 in combo and 6 in combo:
         cen5 = result.params['cen5'].value
         cen6 = result.params['cen6'].value
         
         overlap_threshold = 0.1  # Adjust as needed
-        
+
         if abs(cen5 - cen6) < overlap_threshold:
            
             amp5 = abs(result.params['amp5'].value)  # Absolute since G5 is negative
@@ -83,20 +82,39 @@ def post_fit_check_overlap(result, combo):
             amp_ratio_threshold = 0.3  # Adjust as needed
             
             if amp5 < amp_ratio_threshold * amp6:
-                #print(f"Post-fit: Gaussian 5 has much smaller amplitude than Gaussian 6 in overlap")
                 return False
             elif amp6 < amp_ratio_threshold * amp5:
-                #print(f"Post-fit: Gaussian 6 has much smaller amplitude than Gaussian 5 in overlap")
                 return False
     
     # If no issues found, this fit is valid
     return True
 
 
-# Function to fit the best combination of Gaussians
+# Main Function to fit the best combination of Gaussians
 # This function will try all combinations of Gaussians 2-6 and return the best one
 # Gaussian 1 is always included
 def fit_best_combination(tm, px, lam, spec_cube, err_cube):
+    """
+    Fit the best combination of Gaussian models to the spectrum at a given time and pixel.
+
+    Parameters:
+    -----------
+    tm : int
+        Time index.
+    px : int
+        Pixel index.
+    lam : array
+        Wavelength array.
+    spec_cube : array
+        Spectral data cube. Should be 3D (pixels, time, wavelength).
+    err_cube : array
+        Error cube. Should be the same shape as spec_cube.
+    Returns:
+    --------
+    best_fit : lmfit.ModelResult
+        The best-fit model result.
+        
+    """
 
     spec = spec_cube[px, tm]
     spec_err = err_cube[px, tm]
@@ -118,7 +136,7 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     # Si IV --- Red (Gaussian 2)
     base_params.add('delta_rb', value=0.2, vary=True, min=0.05, max=0.45)
     base_params.add('amp2', expr='amp1 * delta_rb')
-    base_params.add('lamb_rb', value=0.45, vary=True, min=0.35, max=0.5)
+    base_params.add('lamb_rb', value=0.45, vary=True, min=0.15, max=0.5) 
     base_params.add('cen2', expr='cen1 + lamb_rb')
     base_params.add('wid_rb', value=1., vary=True, min=0.5, max=1.25)
     base_params.add('sig2', expr='sig1 * wid_rb')
@@ -155,6 +173,12 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     best_fit = None
     best_aic = np.inf  # Using AIC (Akaike Information Criterion) to compare models
     best_combination = []
+
+    # Check if the maximum value of the spectrum is less than 100
+    # If so, we can skip fitting the other Gaussians
+    # This is a heuristic to avoid fitting noise
+    if spec_max < 100:
+        return best_fit
     
     # Try with just Gaussian 1
     model = Model(spectral_model)
@@ -196,7 +220,7 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
                 continue
     
     # Return the best fit result
-    print(f"Best combination: {best_combination}")
+    #print(f"Best combination: {best_combination}")
     return best_fit
 
 # wrap the fit function to match the original function signature
