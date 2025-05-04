@@ -90,3 +90,16 @@ if __name__ == "__main__":
     # and load the resuts 
     results_dictionary = results_loader()
 '''
+
+
+def load_dic(pxs):
+        results_dict = {}
+        save_dir = "fit_results"
+        for px in pxs:
+            try:
+                with open(f"{save_dir}/pixel_{px}_results.pkl", "rb") as f:
+                    results_dict[px] = pickle.load(f)
+            except FileNotFoundError:
+                print(f"Warning: No results found for pixel {px}")
+                
+        return results_dict
