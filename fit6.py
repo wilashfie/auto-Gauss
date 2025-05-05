@@ -47,7 +47,7 @@ def check_overlapping_gaussians(params, combo):
         cen6 = params['cen6'].value
         
         # Define threshold for "overlapping" centers (in wavelength units)
-        overlap_threshold = 0.1  # adjust as needed
+        overlap_threshold = 0.05  # adjust as needed
         
         if abs(cen5 - cen6) < overlap_threshold:
             amp5 = abs(params['amp5'].value)  # Absolute value since G5 is negative
@@ -71,7 +71,7 @@ def post_fit_check_overlap(result, combo):
         cen5 = result.params['cen5'].value
         cen6 = result.params['cen6'].value
         
-        overlap_threshold = 0.1  # Adjust as needed
+        overlap_threshold = 0.05  # Adjust as needed
 
         if abs(cen5 - cen6) < overlap_threshold:
            
@@ -122,23 +122,23 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     spec_max = np.max(spec)
     imax = np.argmax(spec)
     
-    tmt = tm - 290
     
     # Create base model with Gaussian 1 always present
     base_params = Parameters()
     
     # Si IV --- Positive (Gaussian 1 - always included)
     base_params.add('amp1', value=spec_max, min=0.45*spec_max) 
-    base_params.add('cen1', value=lam[imax], min=1402.75, max=1403.21) 
-    base_params.add('sig1', value=0.15, vary=True, min=0.06, max=0.35)
+    base_params.add('cen1', value=lam[imax], min=1402.75, max=1403.26) 
+    base_params.add('sig1', value=0.15, vary=True, min=0.06, max=0.25) ## 25
     base_params.add('use_g1', value=True, vary=False)
     
     # Si IV --- Red (Gaussian 2)
-    base_params.add('delta_rb', value=0.2, vary=True, min=0.05, max=0.45)
+    base_params.add('delta_rb', value=0.2, vary=True, min=0.1, max=0.45)
     base_params.add('amp2', expr='amp1 * delta_rb')
     base_params.add('lamb_rb', value=0.45, vary=True, min=0.15, max=0.5) 
     base_params.add('cen2', expr='cen1 + lamb_rb')
-    base_params.add('wid_rb', value=1., vary=True, min=0.5, max=1.25)
+    #base_params.add('cen2', value=1403.55,min=1403.25,max=1403.82)
+    base_params.add('wid_rb', value=1., vary=True, min=0.5, max=1.)
     base_params.add('sig2', expr='sig1 * wid_rb')
     base_params.add('use_g2', value=False, vary=False)
     
@@ -155,15 +155,15 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     base_params.add('use_g4', value=False, vary=False)
     
     # Si IV --- negative (Gaussian 5)
-    base_params.add('amp5', value=0.2*spec_max, min=0.12*spec_max, max=0.33*spec_max)
+    base_params.add('amp5', value=0.2*spec_max, min=0.1*spec_max, max=0.33*spec_max)
     base_params.add('cen5', value=1402.87, min=1402.824, max=1402.93)
     base_params.add('neg_sig', value=0.2, vary=True, min=0.15, max=0.26)
     base_params.add('sig5', expr='sig1 * neg_sig')
     base_params.add('use_g5', value=False, vary=False)
     
     # Si IV --- positive (Gaussian 6)
-    base_params.add('amp6', value=0.3*spec_max, min=0.0*spec_max, max=0.5*spec_max)
-    base_params.add('cen6', value=1402.77, min=1402.76, max=1402.85)
+    base_params.add('amp6', value=0.3*spec_max, min=0.1*spec_max, max=0.66*spec_max)
+    base_params.add('cen6', value=1402.77, min=1402.76, max=1402.80)
     base_params.add('sig6', value=0.03, min=0.005, max=0.036)
     base_params.add('use_g6', value=False, vary=False)
     
@@ -177,7 +177,7 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     # Check if the maximum value of the spectrum is less than 100
     # If so, we can skip fitting the other Gaussians
     # This is a heuristic to avoid fitting noise
-    if spec_max < 100:
+    if spec_max < 40:
         return best_fit
     
     # Try with just Gaussian 1
