@@ -65,7 +65,6 @@ def check_overlapping_gaussians(params, combo):
     return combo
 
 # Function to check for overlapping Gaussians 5 and 6 after fitting
-# If they are too close, check their amplitudes
 def post_fit_check_overlap(result, combo):
     if 5 in combo and 6 in combo:
         cen5 = result.params['cen5'].value
@@ -77,8 +76,7 @@ def post_fit_check_overlap(result, combo):
            
             amp5 = abs(result.params['amp5'].value)  # Absolute since G5 is negative
             amp6 = result.params['amp6'].value
-            # Check if the amplitudes are significantly different
-            # Define a threshold for the ratio of amplitudes
+
             amp_ratio_threshold = 0.3  # Adjust as needed
             
             if amp5 < amp_ratio_threshold * amp6:
@@ -86,12 +84,11 @@ def post_fit_check_overlap(result, combo):
             elif amp6 < amp_ratio_threshold * amp5:
                 return False
     
-    # If no issues found, this fit is valid
     return True
 
 
-# Main Function to fit the best combination of Gaussians
-# This function will try all combinations of Gaussians 2-6 and return the best one
+# main Function to fit the best combination of Gaussians
+# tries all combinations of Gaussians 2-6 and return the best one
 # Gaussian 1 is always included
 def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     """
@@ -124,6 +121,8 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     
     
     # Create base model with Gaussian 1 always present
+    # note: parameters are hardcoded for now
+    #   this should be improved in the future
     base_params = Parameters()
     
     # Si IV --- Positive (Gaussian 1 - always included)
@@ -137,7 +136,6 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     base_params.add('amp2', expr='amp1 * delta_rb')
     base_params.add('lamb_rb', value=0.45, vary=True, min=0.15, max=0.5) 
     base_params.add('cen2', expr='cen1 + lamb_rb')
-    #base_params.add('cen2', value=1403.55,min=1403.25,max=1403.82)
     base_params.add('wid_rb', value=1., vary=True, min=0.5, max=1.)
     base_params.add('sig2', expr='sig1 * wid_rb')
     base_params.add('use_g2', value=False, vary=False)
@@ -180,7 +178,7 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
     if spec_max < 40:
         return best_fit
     
-    # Try with just Gaussian 1
+    # init with just Gaussian 1
     model = Model(spectral_model)
     params = copy.deepcopy(base_params)
     result = model.fit(spec, params, x=lam, weights=1/spec_err)
@@ -190,20 +188,20 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
         best_fit = result
         best_combination = [1]
     
-    # Try all combinations of the other Gaussians with Gaussian 1
+    # try all combinations of the other Gaussians with Gaussian 1
     for r in range(1, len(gaussians) + 1):
         for combo in combinations(gaussians, r):
-            # Check for overlapping Gaussians 5 and 6 before fitting
+
+            # pull base_params for the current combination
+            params = copy.deepcopy(base_params)
+
+            # overlapping Gaussians 5 and 6?
             modified_combo = check_overlapping_gaussians(base_params, combo)
             
-            # Create a copy of base parameters for this combination
-            params = copy.deepcopy(base_params)
-            
-            # Set which Gaussians to use for this combination
             for g in modified_combo:
                 params[f'use_g{g}'].value = True
             
-            # Fit the model with this combination
+            # fit the model
             try:
                 result = model.fit(spec, params, x=lam, weights=1/spec_err)
                 
@@ -219,8 +217,6 @@ def fit_best_combination(tm, px, lam, spec_cube, err_cube):
                 print(f"Error fitting combination {[1] + list(modified_combo)}: {e}")
                 continue
     
-    # Return the best fit result
-    #print(f"Best combination: {best_combination}")
     return best_fit
 
 # wrap the fit function to match the original function signature
@@ -252,17 +248,16 @@ def plot_fit_results(tm, px, lam, spec_cube, time_iris, result):
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
         The figure and axes objects for further customization if needed.
     """
-    # Get the spectrum for this time and pixel
+
     spec = spec_cube[px, tm]
     
-    # Get the fit parameters
     fit_res = result.params
     
     def gaussian(x, amplitude, center, sigma):
         """ Gaussian function """
         return amplitude * np.exp(-(x-center)**2 / (2*sigma**2))
     
-    # Get which Gaussians were used in the best fit
+    # get which Gaussians were used in the best fit
     used_gaussians = [1] 
     for i in range(2, 7):
         param_name = f'use_g{i}'
@@ -274,7 +269,7 @@ def plot_fit_results(tm, px, lam, spec_cube, time_iris, result):
     colors = ['blue', 'red', 'green', 'purple', 'orange', 'teal']
     linestyles = ['dashed'] * 6
     
-    # Calculate individual Gaussians only for those used in the fit
+    # calculate individual Gaussians only for those used in the fit
     gaussians = []
     for i in range(1, 7):
         if i in used_gaussians:
